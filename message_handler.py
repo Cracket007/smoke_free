@@ -1,8 +1,9 @@
 import os
 from datetime import datetime
 from moviepy.editor import concatenate_audioclips, AudioFileClip
-from bot_config import bot, audio_files
+from bot_config import bot, audio_files, motivation_phrases, motivation_mapping
 import tempfile
+import random
 
 def calculate_smoke_free_time(quit_time):
     now = datetime.now()
@@ -11,8 +12,7 @@ def calculate_smoke_free_time(quit_time):
     years = total_months // 12
     months = total_months % 12
     days = delta.days % 30
-    hours = delta.seconds // 3600
-    return years, months, days, hours
+    return years, months, days
 
 def get_word_form(number, forms):
     if number % 10 == 1 and number % 100 != 11:
@@ -31,7 +31,7 @@ def get_number_files(number):
     else:  # 21-29
         return [audio_files["twenty"], audio_files["numbers"][str(number - 20)]]
 
-def generate_voice_message(years, months, days, hours):
+def generate_voice_message(years, months, days):
     message_files = [audio_files["intro"]]
     
     # Добавляем годы
@@ -56,15 +56,12 @@ def generate_voice_message(years, months, days, hours):
         form = get_word_form(days, audio_files["day_forms"])
         message_files.append(audio_files["day_forms"][form])
 
-    # Добавляем часы
-    if hours > 0:
-        if years > 0 or months > 0 or days > 0:
-            message_files.append(audio_files["and"])
-        message_files.extend(get_number_files(hours))
-        form = get_word_form(hours, audio_files["hour_forms"])
-        message_files.append(audio_files["hour_forms"][form])
+    # Добавляем мотивирующую фразу
+    motivation_text = random.choice(motivation_phrases)
+    motivation_key = motivation_mapping[motivation_text]
+    message_files.append(audio_files["motivation"][motivation_key])
 
-    return message_files
+    return message_files, motivation_text  # Возвращаем также текст фразы
 
 def combine_audio_files(files):
     """Объединяет несколько .ogg файлов в один"""
@@ -84,8 +81,8 @@ def send_status(chat_id, quit_time):
             bot.send_message(chat_id, "Ошибка: директория audio не найдена")
             return
 
-        years, months, days, hours = calculate_smoke_free_time(quit_time)
-        voice_files = generate_voice_message(years, months, days, hours)
+        years, months, days = calculate_smoke_free_time(quit_time)
+        voice_files, motivation = generate_voice_message(years, months, days)
         
         # Проверяем наличие всех файлов
         for file in voice_files:
@@ -101,7 +98,7 @@ def send_status(chat_id, quit_time):
             
             os.unlink(combined_file)
             
-            # Формируем текстовое сообщение
+            # Формируем только текст с цифрами
             text_parts = []
             if years > 0:
                 text_parts.append(f"{years} г.")
@@ -109,8 +106,6 @@ def send_status(chat_id, quit_time):
                 text_parts.append(f"{months} мес.")
             if days > 0:
                 text_parts.append(f"{days} дн.")
-            if hours > 0:
-                text_parts.append(f"{hours} ч.")
             
             text_message = f"Вы не курите уже {' '.join(text_parts)}"
             bot.send_message(chat_id, text_message)

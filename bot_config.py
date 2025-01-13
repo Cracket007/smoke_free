@@ -1,6 +1,7 @@
 import telebot
 import os
 from dotenv import load_dotenv
+import random
 
 load_dotenv()
 TOKEN = os.getenv('BOT_TOKEN')
@@ -52,5 +53,41 @@ audio_files = {
     },
     
     # Соединительные слова
-    "and": "audio/and.ogg"
+    "and": "audio/and.ogg",
+    
+    # Мотивирующие фразы
+    "motivation": {
+        "phrase1": "audio/phrase1.ogg",  # Я вами горжусь!
+        "phrase2": "audio/phrase2.ogg",  # Вы молодец!
+        "phrase3": "audio/phrase3.ogg",  # Так держать!
+        "phrase4": "audio/phrase4.ogg",  # У вас отлично получается!
+        "phrase5": "audio/phrase5.ogg",  # Каждый день - это победа!
+        "phrase6": "audio/phrase6.ogg",  # Вы делаете правильный выбор!
+        "phrase7": "audio/phrase7.ogg",  # Это достойно уважения!
+        "phrase8": "audio/phrase8.ogg"   # Продолжайте в том же духе!
+    }
 } 
+
+# Связь текстовых фраз с аудиофайлами
+motivation_mapping = {
+    "Я вами горжусь!": "phrase1",
+    "Вы молодец!": "phrase2",
+    "Так держать!": "phrase3",
+    "У вас отлично получается!": "phrase4",
+    "Каждый день - это победа!": "phrase5",
+    "Вы делаете правильный выбор!": "phrase6",
+    "Это достойно уважения!": "phrase7",
+    "Продолжайте в том же духе!": "phrase8"
+} 
+
+# Мотивирующие фразы
+motivation_phrases = [
+    "Я вами горжусь!",
+    "Вы молодец!",
+    "Так держать!",
+    "У вас отлично получается!",
+    "Каждый день - это победа!",
+    "Вы делаете правильный выбор!",
+    "Это достойно уважения!",
+    "Продолжайте в том же духе!"
+] 

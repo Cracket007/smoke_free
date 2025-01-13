@@ -4,59 +4,72 @@ import time
 from threading import Thread
 import signal
 import sys
+import telebot
 
-from bot_config import bot, users
+from bot_config import bot, users, TOKEN
 from commands import register_commands
 from message_handler import send_status
 
 # Флаг для корректного завершения
 running = True
-bot_thread = None  # Добавляем глобальную переменную для потока бота
+bot_thread = None
 
 def signal_handler(sig, frame):
-    """Обработчик сигнала Ctrl+C"""
     global running
     print('\nЗавершение работы бота...')
     running = False
-    
-    # Останавливаем бот
     bot.stop_polling()
-    
-    # Ждем завершения потока бота
     if bot_thread and bot_thread.is_alive():
         bot_thread.join()
-    
     sys.exit(0)
 
-# Регистрируем обработчик Ctrl+C
 signal.signal(signal.SIGINT, signal_handler)
 
 # Регистрируем команды
 register_commands(bot)
 
-# Scheduled notifications
-def scheduled_notifications():
+# Ежедневные уведомления
+def daily_notifications():
+    print("Отправка ежедневных уведомлений...")
     for user_id, data in users.items():
-        quit_time = datetime.strptime(data["quit_date"], "%Y-%m-%d %H:%M")
-        send_status(data["chat_id"], quit_time)
+        if "quit_date" in data:
+            try:
+                quit_time = datetime.strptime(data["quit_date"], "%Y-%m-%d %H:%M")
+                send_status(data["chat_id"], quit_time)
+            except Exception as e:
+                print(f"Ошибка отправки уведомления пользователю {user_id}: {e}")
 
-# Schedule periodic notifications
-schedule.every(6).hours.do(scheduled_notifications)
+# Планировщик
+schedule.every().day.at("15:00").do(daily_notifications)
 
-# Run the bot and scheduler
-def run():
+def run_scheduler():
     while running:
         schedule.run_pending()
-        time.sleep(1)
+        time.sleep(60)  # Проверяем расписание каждую минуту
+
+def main():
+    global bot_thread
+    
+    # Запускаем планировщик в отдельном потоке
+    scheduler_thread = Thread(target=run_scheduler)
+    scheduler_thread.daemon = True
+    scheduler_thread.start()
+    
+    while True:
+        try:
+            print("Бот запущен...")
+            bot.polling(none_stop=True, interval=1)
+        except telebot.apihelper.ApiException as e:
+            print(f"Ошибка API Telegram: {e}")
+            time.sleep(5)
+        except Exception as e:
+            print(f"Критическая ошибка: {e}")
+            time.sleep(5)
+            continue
 
 if __name__ == "__main__":
     print("Бот запущен и готов к работе!")
-    # Run the bot in a separate thread
-    bot_thread = Thread(target=lambda: bot.polling(none_stop=True))
-    bot_thread.daemon = True  # Делаем поток демоном
-    bot_thread.start()
-    
     try:
-        run()
+        main()
     except KeyboardInterrupt:
         signal_handler(signal.SIGINT, None)
