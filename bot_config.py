@@ -21,7 +21,7 @@ audio_files = {
     
     # Базовые числа (1-20, 30)
     "numbers": {str(i): f"audio/{i}.ogg" for i in range(1, 21)},
-    "twenty": "audio/twenty.ogg",
+    "twenty": "audio/20.ogg",
     "thirty": "audio/30.ogg",
     
     # Слова для лет

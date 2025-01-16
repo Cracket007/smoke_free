@@ -5,28 +5,27 @@ from threading import Thread
 import signal
 import sys
 import telebot
+import os
+from dotenv import load_dotenv
 
-from bot_config import bot, users, TOKEN
+from bot_config import bot, users
 from commands import register_commands
 from message_handler import send_status
 
+# Загружаем переменные окружения
+load_dotenv()
+TOKEN = os.getenv('BOT_TOKEN')
+
 # Флаг для корректного завершения
 running = True
-bot_thread = None
 
 def signal_handler(sig, frame):
     global running
     print('\nЗавершение работы бота...')
     running = False
-    bot.stop_polling()
-    if bot_thread and bot_thread.is_alive():
-        bot_thread.join()
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
-
-# Регистрируем команды
-register_commands(bot)
 
 # Ежедневные уведомления
 def daily_notifications():
@@ -45,30 +44,27 @@ schedule.every().day.at("15:00").do(daily_notifications)
 def run_scheduler():
     while running:
         schedule.run_pending()
-        time.sleep(60)  # Проверяем расписание каждую минуту
+        time.sleep(60)
 
 def main():
-    global bot_thread
+    # Регистрируем команды
+    register_commands(bot)
     
     # Запускаем планировщик в отдельном потоке
     scheduler_thread = Thread(target=run_scheduler)
     scheduler_thread.daemon = True
     scheduler_thread.start()
     
-    while True:
+    # Основной цикл бота
+    while running:
         try:
             print("Бот запущен...")
-            bot.polling(none_stop=True, interval=1)
-        except telebot.apihelper.ApiException as e:
-            print(f"Ошибка API Telegram: {e}")
-            time.sleep(5)
+            bot.polling(none_stop=True, interval=1, timeout=60)
         except Exception as e:
-            print(f"Критическая ошибка: {e}")
-            time.sleep(5)
-            continue
+            print(f"Ошибка: {e}")
+            time.sleep(15)
 
 if __name__ == "__main__":
-    print("Бот запущен и готов к работе!")
     try:
         main()
     except KeyboardInterrupt:
