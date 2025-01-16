@@ -7,6 +7,7 @@ import sys
 import telebot
 import os
 from dotenv import load_dotenv
+from flask import Flask, request
 
 from bot_config import bot, users
 from commands import register_commands
@@ -15,6 +16,8 @@ from message_handler import send_status
 # Загружаем переменные окружения
 load_dotenv()
 TOKEN = os.getenv('BOT_TOKEN')
+
+app = Flask(__name__)
 
 # Флаг для корректного завершения
 running = True
@@ -26,6 +29,11 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
+
+# Проверка работоспособности для Heroku
+@app.route('/')
+def index():
+    return 'Bot is running'
 
 # Ежедневные уведомления
 def daily_notifications():
@@ -46,6 +54,15 @@ def run_scheduler():
         schedule.run_pending()
         time.sleep(60)
 
+def run_bot():
+    while running:
+        try:
+            print("Бот запущен...")
+            bot.polling(none_stop=True, interval=1, timeout=60)
+        except Exception as e:
+            print(f"Ошибка: {e}")
+            time.sleep(15)
+
 def main():
     # Регистрируем команды
     register_commands(bot)
@@ -55,14 +72,14 @@ def main():
     scheduler_thread.daemon = True
     scheduler_thread.start()
     
-    # Основной цикл бота
-    while running:
-        try:
-            print("Бот запущен...")
-            bot.polling(none_stop=True, interval=1, timeout=60)
-        except Exception as e:
-            print(f"Ошибка: {e}")
-            time.sleep(15)
+    # Запускаем бота в отдельном потоке
+    bot_thread = Thread(target=run_bot)
+    bot_thread.daemon = True
+    bot_thread.start()
+    
+    # Запускаем Flask для Heroku
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
 
 if __name__ == "__main__":
     try:
