@@ -174,11 +174,20 @@ def register_commands(bot):
             current_time = datetime.now(TIMEZONE)
             notify_time = user.get('notify_time', '15:00')
             
+            # Определяем, будет ли уведомление сегодня или завтра
+            notify_hours, notify_minutes = map(int, notify_time.split(':'))
+            notify_datetime = current_time.replace(hour=notify_hours, minute=notify_minutes)
+            
+            if current_time > notify_datetime:
+                next_notify = "завтра"
+            else:
+                next_notify = "сегодня"
+            
             bot.reply_to(
                 message,
                 f"⏰ Текущее время (Киев): {current_time.strftime('%H:%M')}\n"
                 f"📅 Время уведомлений: {notify_time}\n"
-                f"🔔 Следующее уведомление будет отправлено сегодня в {notify_time}"
+                f"🔔 Следующее уведомление будет отправлено {next_notify} в {notify_time}"
             )
         except Exception as e:
             bot.reply_to(message, f"❌ Ошибка: {str(e)}")
