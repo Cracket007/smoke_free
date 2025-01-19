@@ -1,12 +1,18 @@
 import os
 from datetime import datetime
 from moviepy.editor import concatenate_audioclips, AudioFileClip
-from bot_config import bot, audio_files, motivation_phrases, motivation_mapping
+from bot_config import bot, audio_files, motivation_phrases, motivation_mapping, get_motivational_message, TIMEZONE
 import tempfile
 import random
+import pytz
 
 def calculate_smoke_free_time(quit_time):
-    now = datetime.now()
+    """Вычисляет время без курения"""
+    now = datetime.now(TIMEZONE)
+    # Конвертируем время отказа в киевский часовой пояс если оно без зоны
+    if quit_time.tzinfo is None:
+        quit_time = TIMEZONE.localize(quit_time)
+    
     delta = now - quit_time
     total_months = delta.days // 30
     years = total_months // 12
@@ -75,11 +81,32 @@ def combine_audio_files(files):
         combined.close()
         return temp_file.name
 
+def format_duration(duration):
+    """Форматирование продолжительности"""
+    days = duration.days
+    hours = duration.seconds // 3600
+    minutes = (duration.seconds % 3600) // 60
+    
+    parts = []
+    if days > 0:
+        parts.append(f"{days} {'день' if days == 1 else 'дня' if 1 < days < 5 else 'дней'}")
+    if hours > 0:
+        parts.append(f"{hours} {'час' if hours == 1 else 'часа' if 1 < hours < 5 else 'часов'}")
+    if minutes > 0:
+        parts.append(f"{minutes} {'минуту' if minutes == 1 else 'минуты' if 1 < minutes < 5 else 'минут'}")
+    
+    return " и ".join(parts) if parts else "меньше минуты"
+
 def send_status(chat_id, quit_time):
+    """Отправка статуса о времени без курения"""
     try:
         if not os.path.exists('audio'):
-            bot.send_message(chat_id, "Ошибка: директория audio не найдена")
+            print("❌ Ошибка: директория audio не найдена")
             return
+
+        # Конвертируем время отказа в киевский часовой пояс если оно без зоны
+        if quit_time.tzinfo is None:
+            quit_time = TIMEZONE.localize(quit_time)
 
         years, months, days = calculate_smoke_free_time(quit_time)
         voice_files, motivation = generate_voice_message(years, months, days)
@@ -87,7 +114,7 @@ def send_status(chat_id, quit_time):
         # Проверяем наличие всех файлов
         for file in voice_files:
             if not os.path.exists(file):
-                bot.send_message(chat_id, f"Ошибка: файл {file} не найден")
+                print(f"❌ Ошибка: файл {file} не найден")
                 return
         
         try:
@@ -98,20 +125,51 @@ def send_status(chat_id, quit_time):
             
             os.unlink(combined_file)
             
-            # Формируем только текст с цифрами
+            # Формируем только текст с годами, месяцами и днями
             text_parts = []
             if years > 0:
-                text_parts.append(f"{years} г.")
+                text_parts.append(f"{years} {'год' if years == 1 else 'года' if 1 < years < 5 else 'лет'}")
             if months > 0:
-                text_parts.append(f"{months} мес.")
+                text_parts.append(f"{months} {'месяц' if months == 1 else 'месяца' if 1 < months < 5 else 'месяцев'}")
             if days > 0:
-                text_parts.append(f"{days} дн.")
+                text_parts.append(f"{days} {'день' if days == 1 else 'дня' if 1 < days < 5 else 'дней'}")
             
-            text_message = f"Вы не курите уже {' '.join(text_parts)}"
+            text_message = f"🚭 Вы не курите уже {' '.join(text_parts)}"
             bot.send_message(chat_id, text_message)
             
         except Exception as audio_error:
-            bot.send_message(chat_id, f"Ошибка при обработке аудио: {str(audio_error)}")
-        
+            print(f"❌ Ошибка при обработке аудио: {audio_error}")
+            
     except Exception as e:
-        bot.send_message(chat_id, f"Произошла ошибка: {str(e)}") 
+        print(f"❌ Ошибка отправки статуса: {e}")
+        bot.send_message(chat_id, "❌ Произошла ошибка при подсчете времени")
+
+def send_voice_status(chat_id, quit_time):
+    """Отправка голосового статуса о времени без курения"""
+    try:
+        if not os.path.exists('audio'):
+            print("❌ Ошибка: директория audio не найдена")
+            return
+
+        years, months, days = calculate_smoke_free_time(quit_time)
+        voice_files, motivation = generate_voice_message(years, months, days)
+        
+        # Проверяем наличие всех файлов
+        for file in voice_files:
+            if not os.path.exists(file):
+                print(f"❌ Ошибка: файл {file} не найден")
+                return
+        
+        try:
+            combined_file = combine_audio_files(voice_files)
+            
+            with open(combined_file, 'rb') as audio:
+                bot.send_voice(chat_id, audio)
+            
+            os.unlink(combined_file)
+            
+        except Exception as audio_error:
+            print(f"❌ Ошибка при обработке аудио: {audio_error}")
+            
+    except Exception as e:
+        print(f"❌ Ошибка отправки голосового статуса: {e}") 
