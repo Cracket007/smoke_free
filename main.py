@@ -56,30 +56,12 @@ def setup_schedules():
             print(f"✅ Установлено уведомление для {user['name']} на {user['notify_time']} (Киев)")
 
 def run_scheduler():
-    last_check = {}  # Словарь для отслеживания последней отправки
     while running:
         try:
-            now = datetime.now(TIMEZONE)
-            current_time = now.strftime('%H:%M')
-            print(f"⏰ Проверка расписания: {current_time}")
-            
-            # Проверяем всех пользователей
-            users = get_all_users()
-            for user in users:
-                notify_time = user.get('notify_time')
-                user_id = user['user_id']
-                
-                if notify_time and notify_time == current_time:
-                    # Проверяем, не отправляли ли мы уже уведомление в эту минуту
-                    last_notify = last_check.get(user_id, '')
-                    if last_notify != current_time:
-                        print(f"🔔 Отправка уведомления для {user['name']} в {current_time}")
-                        send_notification(user_id)
-                        last_check[user_id] = current_time
-            
+            schedule.run_pending()
+            time.sleep(1)
         except Exception as e:
             print(f"❌ Ошибка планировщика: {e}")
-        time.sleep(40)  # Проверяем каждые 40 секунд
 
 def run_bot():
     reconnect_delay = 15
@@ -116,6 +98,7 @@ def main():
     print("База данных инициализирована")
     
     register_commands(bot)
+    setup_schedules()
     
     scheduler_thread = Thread(target=run_scheduler)
     scheduler_thread.daemon = True
