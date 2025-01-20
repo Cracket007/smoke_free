@@ -45,13 +45,30 @@ def run_bot():
             print(f"❌ Ошибка: {e}")
         time.sleep(1)
 
+def run_scheduler():
+    """Запуск планировщика в бесконечном цикле"""
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+
 def main():
+    # Инициализируем базу данных
     init_db()
-    print("База данных инициализирована")
     
+    # Регистрируем команды
     register_commands(bot)
+    
+    # Настраиваем расписание
     setup_schedules()
-    run_bot()
+    
+    # Запускаем планировщик в отдельном потоке
+    scheduler_thread = Thread(target=run_scheduler)
+    scheduler_thread.daemon = True
+    scheduler_thread.start()
+    
+    print("🚀 Бот запущен")
+    # Запускаем бота в бесконечном цикле
+    bot.infinity_polling()
 
 if __name__ == "__main__":
     try:
