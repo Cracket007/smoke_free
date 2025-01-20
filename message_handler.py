@@ -153,6 +153,17 @@ def send_status(chat_id, quit_time):
 def send_voice_status(chat_id, quit_time):
     """Отправляет голосовое сообщение о прогрессе"""
     try:
+        # Проверяем и добавляем часовой пояс
+        if quit_time.tzinfo is None:
+            quit_time = TIMEZONE.localize(quit_time)
+        
+        now = datetime.now(TIMEZONE)
+        
+        # Проверяем, не в будущем ли дата
+        if quit_time > now:
+            bot.send_message(chat_id, "❌ Дата отказа не может быть в будущем")
+            return
+            
         if not os.path.exists('audio'):
             print("❌ Папка audio не найдена")
             return

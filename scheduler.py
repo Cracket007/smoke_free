@@ -10,6 +10,14 @@ def send_notification(user_id):
         user = get_user(user_id)
         if user and user.get('quit_date'):
             quit_time = datetime.strptime(user['quit_date'], "%Y-%m-%d %H:%M")
+            quit_time = TIMEZONE.localize(quit_time)  # Добавляем часовой пояс
+            now = datetime.now(TIMEZONE)
+            
+            # Проверяем, не в будущем ли дата
+            if quit_time > now:
+                print(f"❌ Пропуск уведомления - дата в будущем: {quit_time}")
+                return
+            
             send_voice_status(user['chat_id'], quit_time)
     except Exception as e:
         print(f"❌ Ошибка отправки: {e}")
