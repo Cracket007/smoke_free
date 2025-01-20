@@ -68,31 +68,39 @@ def keep_alive():
             time.sleep(5)
 
 def main():
-    # Инициализируем базу данных
-    init_db()
-    
-    # Регистрируем команды
-    register_commands(bot)
-    
-    # Настраиваем начальное расписание
-    setup_schedules()
-    
-    # Запускаем планировщик в отдельном потоке
-    scheduler_thread = Thread(target=run_scheduler)
-    scheduler_thread.daemon = True
-    scheduler_thread.start()
-    
-    # Запускаем поддержку расписания в отдельном потоке
-    keeper_thread = Thread(target=keep_alive)
-    keeper_thread.daemon = True
-    keeper_thread.start()
-    
-    print("🚀 Бот запущен")
-    # Запускаем бота в бесконечном цикле
-    bot.infinity_polling()
+    try:
+        # Инициализируем базу данных
+        init_db()
+        
+        # Регистрируем команды
+        register_commands(bot)
+        
+        # Настраиваем начальное расписание
+        setup_schedules()
+        
+        # Запускаем планировщик в отдельном потоке
+        scheduler_thread = Thread(target=run_scheduler)
+        scheduler_thread.daemon = True
+        scheduler_thread.start()
+        
+        # Запускаем поддержку расписания в отдельном потоке
+        keeper_thread = Thread(target=keep_alive)
+        keeper_thread.daemon = True
+        keeper_thread.start()
+        
+        print("🚀 Бот запущен")
+        # Запускаем бота в бесконечном цикле с обработкой ошибок
+        while True:
+            try:
+                bot.infinity_polling(timeout=60, long_polling_timeout=60)
+            except Exception as e:
+                print(f"❌ Ошибка бота: {str(e)}")
+                time.sleep(5)
+                continue
+            
+    except Exception as e:
+        print(f"❌ Критическая ошибка: {str(e)}")
+        raise
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        signal_handler(signal.SIGINT, None)
+    main()
