@@ -5,9 +5,6 @@ from telebot import types
 from database import save_user, get_user, get_all_users
 from scheduler import setup_schedules
 
-# В начале файла добавим словарь для хранения временных состояний
-waiting_for_time = {}  # user_id -> future_date
-
 def register_commands(bot):
     # Сначала регистрируем все команды
     commands = [
@@ -270,7 +267,7 @@ def register_commands(bot):
                 
                 # Проверяем, не в будущем ли дата
                 now = datetime.now(TIMEZONE)
-                quit_date = TIMEZONE.localize(quit_date)  # Добавляем часовой пояс к дате отказа
+                quit_date = TIMEZONE.localize(quit_date)  # Добавляем часовой пояс
                 if quit_date > now:
                     bot.reply_to(
                         message,
@@ -304,18 +301,6 @@ def register_commands(bot):
                     "⚡️ /settings - настрой уведомления\n"
                     "❓ /help - все команды"
                 )
-            
-            if user_id in waiting_for_time:
-                # Если время некорректное, но мы ждали время от пользователя
-                bot.reply_to(
-                    message,
-                    "❌ Некорректный формат времени!\n\n"
-                    "⏰ Введите время в формате ЧЧ:ММ\n"
-                    "• Часы: от 00 до 23\n"
-                    "• Минуты: от 00 до 59\n\n"
-                    "💫 Например: 10:30 или 20:00"
-                )
-                return
             
         except Exception as e:
             bot.reply_to(message, f"❌ Ошибка: {str(e)}") 
