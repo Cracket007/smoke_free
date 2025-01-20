@@ -27,31 +27,13 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-def run_bot():
-    # Запускаем бота в отдельном потоке
-    bot_thread = Thread(target=bot.polling, kwargs={
-        'none_stop': True,
-        'interval': 3,
-        'timeout': 60
-    })
-    bot_thread.daemon = True
-    bot_thread.start()
-    
-    # Основной цикл для планировщика
-    while running:
-        try:
-            schedule.run_pending()
-        except Exception as e:
-            print(f"❌ Ошибка: {e}")
-        time.sleep(1)
-
 def run_scheduler():
     """Запуск планировщика в бесконечном цикле"""
     while True:
         try:
             print("🔄 Проверка расписания...")
             schedule.run_pending()
-            time.sleep(30)  # Проверка каждые 30 секунд
+            time.sleep(30)
         except Exception as e:
             print(f"❌ Ошибка планировщика: {str(e)}")
             time.sleep(5)
@@ -62,7 +44,7 @@ def keep_alive():
         try:
             print("🔄 Обновление расписания...")
             setup_schedules()
-            time.sleep(7200)  # Обновление каждые 2 часа
+            time.sleep(7200)
         except Exception as e:
             print(f"❌ Ошибка обновления расписания: {str(e)}")
             time.sleep(5)
@@ -89,6 +71,7 @@ def main():
         keeper_thread.start()
         
         print("🚀 Бот запущен")
+        
         # Запускаем бота в бесконечном цикле с обработкой ошибок
         while True:
             try:
