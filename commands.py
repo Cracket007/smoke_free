@@ -13,10 +13,8 @@ def register_commands(bot):
     commands = [
         types.BotCommand("start", "Начать использование бота"),
         types.BotCommand("status", "Узнать, сколько вы не курите"),
-        types.BotCommand("settime", "Настроить время уведомлений"),
         types.BotCommand("setdate", "Изменить дату отказа"),
-        types.BotCommand("check", "Проверить настройки уведомлений"),
-        types.BotCommand("notifications", "Включить/выключить уведомления"),
+        types.BotCommand("settings", "Настройки уведомлений"),
         types.BotCommand("help", "Показать справку"),
     ]
     bot.set_my_commands(commands)
@@ -88,7 +86,7 @@ def register_commands(bot):
                 f"🎉 Отлично! Дата отказа установлена на {date_str}\n\n"
                 "✨ Что дальше:\n"
                 "💫 Нажми 'Сколько я не курю?' для проверки прогресса\n"
-                "⚡️ Настрой уведомления командой /settime"
+                "⚡️ Настрой уведомления командой /settings"
             )
         except ValueError:
             bot.reply_to(
@@ -113,8 +111,8 @@ def register_commands(bot):
         quit_time = datetime.strptime(user['quit_date'], "%Y-%m-%d %H:%M")
         send_status(user['chat_id'], quit_time)
 
-    @bot.message_handler(commands=['settime'])
-    def handle_settime(message):
+    @bot.message_handler(commands=['settings'])
+    def handle_settings(message):
         try:
             user_id = str(message.from_user.id)
             user = get_user(user_id)
@@ -122,62 +120,39 @@ def register_commands(bot):
                 bot.reply_to(message, "❗️ Сначала зарегистрируйтесь с помощью /start")
                 return
             
-            if not user.get('quit_date'):
-                bot.reply_to(
-                    message, 
-                    "❗️ Сначала укажите дату отказа от курения в формате ДД.ММ.ГГГГ\n"
-                    "Например: 19.01.2025"
-                )
-                return
-            
-            # Создаем клавиатуру с кнопками времени
-            markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=3)
-            times = ['09:00', '12:00', '15:00', '18:00', '21:00']
-            buttons = [types.KeyboardButton(time) for time in times]
-            markup.add(*buttons)
-            
-            # Добавляем кнопку возврата
-            back_button = types.KeyboardButton('Сколько я не курю?')
-            markup.add(back_button)
-            
-            current_time = user.get('notify_time', '15:00')
-            bot.reply_to(
-                message,
-                f"⚡️ Текущее время уведомлений: {current_time}\n\n"
-                "🕒 Выбери удобное время для уведомлений:\n"
-                "• Нажмите на одну из кнопок\n"
-                "• Или введите своё время в формате ЧЧ:ММ\n\n"
-                "💫 Например: 10:30 или 20:00\n\n"
-                "✨ Буду поддерживать тебя каждый день в выбранное время!"
-            )
-            
-        except Exception as e:
-            print(f"Ошибка в handle_settime: {e}")  # Добавим логирование
-            bot.reply_to(message, f"❌ Ошибка: {str(e)}")
-
-    @bot.message_handler(commands=['notifications'])
-    def handle_notifications(message):
-        try:
-            user_id = str(message.from_user.id)
-            user = get_user(user_id)
-            if not user:
-                bot.reply_to(message, "❗️ Сначала зарегистрируйтесь с помощью /start")
-                return
+            current_time = datetime.now(TIMEZONE)
+            notify_time = user.get('notify_time', '15:00')
+            notifications_enabled = user.get('notifications_enabled', True)
             
             # Создаем клавиатуру
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+            times = ['09:00', '12:00', '15:00', '18:00', '21:00']
+            time_buttons = [types.KeyboardButton(time) for time in times]
             on_button = types.KeyboardButton('🔔 Включить уведомления')
             off_button = types.KeyboardButton('🔕 Выключить уведомления')
             back_button = types.KeyboardButton('Сколько я не курю?')
-            markup.add(on_button, off_button, back_button)
             
-            notifications_enabled = user.get('notifications_enabled', True)
+            markup.add(*time_buttons)
+            markup.add(on_button, off_button)
+            markup.add(back_button)
+            
+            # Определяем статус следующего уведомления
+            notify_hours, notify_minutes = map(int, notify_time.split(':'))
+            notify_datetime = current_time.replace(hour=notify_hours, minute=notify_minutes)
+            next_notify = "завтра" if current_time > notify_datetime else "сегодня"
+            
             status = "включены ✅" if notifications_enabled else "выключены ❌"
             
             bot.reply_to(
                 message,
-                f"🔔 Уведомления сейчас {status}\n\n"
-                "Выберите действие:",
+                f"⚙️ Настройки уведомлений:\n\n"
+                f"🔔 Статус: {status}\n"
+                f"⏰ Время отправки: {notify_time}\n"
+                f"📅 Следующее уведомление: {next_notify} в {notify_time}\n\n"
+                "Выберите действие:\n"
+                "• Нажмите на время для изменения\n"
+                "• Или введите своё время в формате ЧЧ:ММ\n"
+                "• Используйте кнопки для включения/выключения",
                 reply_markup=markup
             )
             
@@ -190,10 +165,8 @@ def register_commands(bot):
             "✨ Мои команды:\n\n"
             "▫️ /start - Начать использование бота\n"
             "▫️ /status - Узнать, сколько вы не курите\n"
-            "▫️ /settime - Настроить время уведомлений\n"
             "▫️ /setdate - Изменить дату отказа (ДД.ММ.ГГГГ)\n"
-            "▫️ /check - Проверить настройки уведомлений\n"
-            "▫️ /notifications - Включить/выключить уведомления\n"
+            "▫️ /settings - Настройки уведомлений\n"
             "▫️ /help - Показать это сообщение\n\n"
             "💫 Также ты можешь:\n"
             "🕒 Использовать кнопку 'Сколько я не курю?'\n"
@@ -202,36 +175,6 @@ def register_commands(bot):
             "💪 Вместе мы сможем все!"
         )
         bot.reply_to(message, help_text)
-
-    @bot.message_handler(commands=['check'])
-    def handle_check(message):
-        try:
-            user_id = str(message.from_user.id)
-            user = get_user(user_id)
-            if not user:
-                bot.reply_to(message, "❗️ Сначала зарегистрируйтесь с помощью /start")
-                return
-            
-            current_time = datetime.now(TIMEZONE)
-            notify_time = user.get('notify_time', '15:00')
-            
-            # Определяем, будет ли уведомление сегодня или завтра
-            notify_hours, notify_minutes = map(int, notify_time.split(':'))
-            notify_datetime = current_time.replace(hour=notify_hours, minute=notify_minutes)
-            
-            if current_time > notify_datetime:
-                next_notify = "завтра"
-            else:
-                next_notify = "сегодня"
-            
-            bot.reply_to(
-                message,
-                f"🕐 Текущее время (Киев): {current_time.strftime('%H:%M')}\n"
-                f"⏰ Время уведомлений: {notify_time}\n"
-                f"📢 Следующее уведомление будет отправлено {next_notify} в {notify_time}"
-            )
-        except Exception as e:
-            bot.reply_to(message, f"❌ Ошибка: {str(e)}")
 
     @bot.message_handler(func=lambda message: True)
     def handle_text(message):
@@ -244,31 +187,6 @@ def register_commands(bot):
                 return
             
             text = message.text.strip()
-            
-            # Обработка включения/выключения уведомлений
-            if text == '🔔 Включить уведомления':
-                save_user(user_id, user['name'], user['chat_id'], 
-                         user.get('quit_date'), user.get('notify_time'), True)
-                setup_schedules()  # Обновляем расписание
-                
-                keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-                status_button = types.KeyboardButton('Сколько я не курю?')
-                keyboard.add(status_button)
-                
-                bot.reply_to(message, "✅ Уведомления включены!", reply_markup=keyboard)
-                return
-                
-            if text == '🔕 Выключить уведомления':
-                save_user(user_id, user['name'], user['chat_id'], 
-                         user.get('quit_date'), user.get('notify_time'), False)
-                setup_schedules()  # Обновляем расписание
-                
-                keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-                status_button = types.KeyboardButton('Сколько я не курю?')
-                keyboard.add(status_button)
-                
-                bot.reply_to(message, "❌ Уведомления выключены!", reply_markup=keyboard)
-                return
             
             # Проверяем формат времени (ЧЧ:ММ)
             if ':' in text and len(text) == 5:
@@ -339,7 +257,7 @@ def register_commands(bot):
                         bot.reply_to(
                             message, 
                             f" Супер! Буду поддерживать тебя каждый день в {text}\n"
-                            "✨ Время всегда можно изменить командой /settime",
+                            "✨ Время всегда можно изменить в настройках /settings",
                             reply_markup=keyboard
                         )
                         return
@@ -393,7 +311,7 @@ def register_commands(bot):
                     f"🎉 Отлично! Дата отказа установлена на {text}\n\n"
                     "✨ Что дальше:\n"
                     "💫 Нажми кнопку 'Сколько я не курю?' или команду /status чтобы увидеть свой прогресс\n"
-                    "⚡️ Настрой уведомления командой /settime чтобы получать поддержку каждый день\n\n"
+                    "⚡️ Настрой уведомления командой /settings чтобы получать поддержку каждый день\n\n"
                     "💪 Ты делаешь правильный выбор!"
                 )
                 
@@ -408,7 +326,7 @@ def register_commands(bot):
                     "📱 Как пользоваться:\n"
                     "💫 Нажми 'Сколько я не курю?' для проверки\n"
                     "📅 Отправь дату отказа (ДД.ММ.ГГГГ)\n"
-                    "⚡️ /settime - настрой время уведомлений\n"
+                    "⚡️ /settings - настрой уведомления\n"
                     "❓ /help - все команды"
                 )
             
