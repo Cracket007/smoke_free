@@ -152,7 +152,33 @@ def send_voice_status(chat_id, quit_time):
             return
 
         years, months, days = calculate_smoke_free_time(quit_time)
-        voice_files, motivation = generate_voice_message(years, months, days)
+        voice_files = []  # Сначала собираем все файлы
+        
+        # Добавляем вступление
+        voice_files.append(audio_files['intro'])
+        
+        # Добавляем годы, если есть
+        if years > 0:
+            voice_files.extend(get_number_files(years))
+            voice_files.append(audio_files['year_forms'][get_word_form(years, 'year')])
+            if months > 0 or days > 0:
+                voice_files.append(audio_files['and'])
+        
+        # Добавляем месяцы, если есть
+        if months > 0:
+            voice_files.extend(get_number_files(months))
+            voice_files.append(audio_files['month_forms'][get_word_form(months, 'month')])
+            if days > 0:
+                voice_files.append(audio_files['and'])
+        
+        # Добавляем дни
+        if days > 0:
+            voice_files.extend(get_number_files(days))
+            voice_files.append(audio_files['day_forms'][get_word_form(days, 'day')])
+        
+        # Добавляем мотивационную фразу
+        motivation = random.choice(list(audio_files['motivation'].values()))
+        voice_files.append(motivation)
         
         # Проверяем наличие всех файлов
         for file in voice_files:
@@ -162,10 +188,8 @@ def send_voice_status(chat_id, quit_time):
         
         try:
             combined_file = combine_audio_files(voice_files)
-            
             with open(combined_file, 'rb') as audio:
                 bot.send_voice(chat_id, audio)
-            
             os.unlink(combined_file)
             
         except Exception as audio_error:

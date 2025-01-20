@@ -3,6 +3,7 @@ from bot_config import bot, TIMEZONE
 from message_handler import send_status
 from telebot import types
 from database import save_user, get_user, get_all_users
+from scheduler import setup_schedules
 
 def register_commands(bot):
     # Сначала регистрируем все команды
@@ -220,7 +221,9 @@ def register_commands(bot):
                         save_user(user_id, user['name'], user['chat_id'], 
                                 user.get('quit_date'), text)
                         
-                        # Возвращаем основную клавиатуру с одной кнопкой
+                        # Перенастраиваем расписание после изменения времени
+                        setup_schedules()
+                        
                         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
                         status_button = types.KeyboardButton('Сколько я не курю?')
                         keyboard.add(status_button)
