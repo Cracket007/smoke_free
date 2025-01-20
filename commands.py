@@ -231,21 +231,27 @@ def register_commands(bot):
                 try:
                     hours, minutes = map(int, text.split(':'))
                     if 0 <= hours < 24 and 0 <= minutes < 60:
-                        # Включаем уведомления и устанавливаем время
-                        save_user(user_id, user['name'], user['chat_id'],
-                                user.get('quit_date'), text, True)
-                        setup_schedules()
-                        
-                        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-                        status_button = types.KeyboardButton('Сколько я не курю?')
-                        keyboard.add(status_button)
-                        
-                        bot.reply_to(
-                            message, 
-                            f"✨ Отлично! В {text} я напомню вам о том, что вы планируете бросить курить {user['quit_date']}\n\n"
-                            "💪 Вместе мы сможем это сделать!",
-                            reply_markup=keyboard
-                        )
+                        if user.get('quit_date'):
+                            # Включаем уведомления и устанавливаем время
+                            save_user(user_id, user['name'], user['chat_id'],
+                                    user.get('quit_date'), text, True)
+                            setup_schedules()
+                            
+                            keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+                            status_button = types.KeyboardButton('Сколько я не курю?')
+                            keyboard.add(status_button)
+                            
+                            bot.reply_to(
+                                message, 
+                                f"✨ Отлично! Буду поддерживать тебя каждый день в {text}\n"
+                                "💪 Вместе мы сможем это сделать!",
+                                reply_markup=keyboard
+                            )
+                        else:
+                            bot.reply_to(
+                                message,
+                                "❗️ Сначала укажите дату отказа от курения"
+                            )
                         return
                 except ValueError:
                     pass
@@ -266,27 +272,10 @@ def register_commands(bot):
                 now = datetime.now(TIMEZONE)
                 quit_date = TIMEZONE.localize(quit_date)  # Добавляем часовой пояс к дате отказа
                 if quit_date > now:
-                    # Сохраняем дату во временное хранилище
-                    waiting_for_time[user_id] = quit_date
-                    
-                    # Создаем клавиатуру с кнопками времени
-                    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=3)
-                    times = ['09:00', '12:00', '15:00', '18:00', '21:00']
-                    buttons = [types.KeyboardButton(time) for time in times]
-                    markup.add(*buttons)
-                    
-                    # Добавляем кнопку возврата
-                    back_button = types.KeyboardButton('Сколько я не курю?')
-                    markup.add(back_button)
-                    
                     bot.reply_to(
                         message,
-                        f"📅 {text} - эта дата еще не наступила\n\n"
-                        "⏰ В какое время вы хотите получить напоминание о том, что собираетесь бросить курить?\n\n"
-                        "• Нажмите на одну из кнопок\n"
-                        "• Или введите своё время в формате ЧЧ:ММ\n\n"
-                        "💫 Например: 10:30 или 20:00",
-                        reply_markup=markup
+                        "❌ Нельзя указать будущую дату.\n"
+                        "📅 Укажите дату, когда вы уже бросили курить"
                     )
                     return
                 
