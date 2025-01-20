@@ -38,6 +38,14 @@ def save_user(user_id: str, name: str, chat_id: int, quit_date: str = None, noti
         conn = sqlite3.connect('users.db')
         c = conn.cursor()
         
+        print(f"\n🔄 Сохранение пользователя:")
+        print(f"👤 ID: {user_id}")
+        print(f"📛 Имя: {name}")
+        print(f"💬 Chat ID: {chat_id}")
+        print(f"📅 Дата отказа: {quit_date}")
+        print(f"⏰ Время уведомлений: {notify_time}")
+        print(f"🔔 Уведомления включены: {notifications_enabled}")
+        
         if notify_time:
             # Проверяем формат времени
             hours, minutes = map(int, notify_time.split(':'))
@@ -46,13 +54,14 @@ def save_user(user_id: str, name: str, chat_id: int, quit_date: str = None, noti
                 
         c.execute('''
             INSERT OR REPLACE INTO users (user_id, name, chat_id, quit_date, notify_time, notifications_enabled)
-            VALUES (?, ?, ?, ?, COALESCE(?, '15:00'), ?)
+            VALUES (?, ?, ?, ?, ?, ?)
         ''', (user_id, name, chat_id, quit_date, notify_time, notifications_enabled))
         
         conn.commit()
-        print(f"✅ Сохранено время уведомлений {notify_time} для пользователя {name}")
+        print(f"✅ Пользователь успешно сохранен в БД")
     except Exception as e:
-        print(f"❌ Ошибка сохранения пользователя: {e}")
+        print(f"❌ Ошибка сохранения пользователя в БД: {str(e)}")
+        print(f"🔍 Детали ошибки: {type(e).__name__}")
     finally:
         conn.close()
 

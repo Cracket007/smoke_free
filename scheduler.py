@@ -17,19 +17,30 @@ def send_notification(user_id):
 def setup_schedules():
     """Настройка расписания для каждого пользователя"""
     try:
+        print("\n🔄 Настройка расписания уведомлений:")
         schedule.clear()
         users = get_all_users()
+        
         if not users:
+            print("❌ Нет пользователей для настройки уведомлений")
             return
             
         for user in users:
             notify_time = user.get('notify_time')
             notifications_enabled = user.get('notifications_enabled', True)
+            print(f"\n👤 Пользователь: {user['name']}")
+            print(f"⏰ Время уведомлений: {notify_time}")
+            print(f"🔔 Статус уведомлений: {'включены' if notifications_enabled else 'выключены'}")
+            
             if notify_time and notifications_enabled:
                 schedule.every().day.at(notify_time).do(
                     send_notification, 
                     user_id=user['user_id']
                 ).tag(user['user_id'])
+                print(f"✅ Уведомление запланировано на {notify_time}")
+            else:
+                print("❌ Уведомления не настроены")
                 
     except Exception as e:
-        print(f"❌ Ошибка планировщика: {e}") 
+        print(f"❌ Ошибка настройки расписания: {str(e)}")
+        print(f"🔍 Детали ошибки: {type(e).__name__}") 
