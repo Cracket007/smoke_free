@@ -51,7 +51,7 @@ def run_scheduler():
         try:
             print("🔄 Проверка расписания...")
             schedule.run_pending()
-            time.sleep(1)
+            time.sleep(30)  # Проверка каждые 30 секунд
         except Exception as e:
             print(f"❌ Ошибка планировщика: {str(e)}")
             time.sleep(5)
@@ -62,7 +62,7 @@ def keep_alive():
         try:
             print("🔄 Обновление расписания...")
             setup_schedules()
-            time.sleep(3600)
+            time.sleep(7200)  # Обновление каждые 2 часа
         except Exception as e:
             print(f"❌ Ошибка обновления расписания: {str(e)}")
             time.sleep(5)
