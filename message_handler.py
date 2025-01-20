@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from moviepy.editor import concatenate_audioclips, AudioFileClip
+from pydub import AudioSegment
 from bot_config import bot, audio_files, motivation_phrases, motivation_mapping, get_motivational_message, TIMEZONE
 import tempfile
 import random
@@ -70,16 +70,37 @@ def generate_voice_message(years, months, days):
     return message_files, motivation_text  # Возвращаем также текст фразы
 
 def combine_audio_files(files):
-    """Объединяет несколько .ogg файлов в один"""
-    audio_clips = [AudioFileClip(file) for file in files]
-    combined = concatenate_audioclips(audio_clips)
-    
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.ogg') as temp_file:
-        combined.write_audiofile(temp_file.name)
-        for clip in audio_clips:
-            clip.close()
-        combined.close()
-        return temp_file.name
+    """Объединяет аудиофайлы и конвертирует в голосовое сообщение"""
+    try:
+        # Объединяем все аудио файлы
+        combined = AudioSegment.empty()
+        for file in files:
+            audio = AudioSegment.from_ogg(file)
+            combined += audio
+            
+        # Конвертируем в формат для голосовых сообщений
+        # Параметры: моно, частота 48кГц, битрейт 128кбит/с
+        combined = combined.set_channels(1)
+        combined = combined.set_frame_rate(48000)
+        
+        # Сохраняем во временный файл
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.ogg') as temp_file:
+            # Экспортируем с параметрами для голосовых сообщений
+            combined.export(
+                temp_file.name,
+                format='ogg',
+                codec='libopus',
+                parameters=[
+                    '-ac', '1',  # моно
+                    '-ar', '48000',  # частота 48кГц
+                    '-b:a', '128k'  # битрейт 128кбит/с
+                ]
+            )
+            return temp_file.name
+            
+    except Exception as e:
+        print(f"❌ Ошибка при обработке аудио: {e}")
+        raise
 
 def format_duration(duration):
     """Форматирование продолжительности"""
@@ -134,7 +155,7 @@ def send_status(chat_id, quit_time):
             if days > 0:
                 text_parts.append(f"{days} {'день' if days == 1 else 'дня' if 1 < days < 5 else 'дней'}")
             
-            text_message = f"🚭 Вы не курите уже {' '.join(text_parts)}"
+            text_message = f"💪 Ваш прогресс:\n\n🌟 {' '.join(text_parts)} без курения!\n\n🎯 Так держать!"
             bot.send_message(chat_id, text_message)
             
         except Exception as audio_error:
