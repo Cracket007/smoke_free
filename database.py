@@ -9,19 +9,30 @@ def init_db():
     """Инициализация базы данных"""
     conn = sqlite3.connect('users.db')
     c = conn.cursor()
+    
+    # Проверяем существование колонки notifications_enabled
+    c.execute("PRAGMA table_info(users)")
+    columns = [column[1] for column in c.fetchall()]
+    
+    if 'notifications_enabled' not in columns:
+        # Добавляем колонку если её нет
+        c.execute('ALTER TABLE users ADD COLUMN notifications_enabled BOOLEAN DEFAULT TRUE')
+        print("✅ Добавлена колонка notifications_enabled")
+    
     c.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id TEXT PRIMARY KEY,
             name TEXT,
             chat_id INTEGER,
             quit_date TEXT,
-            notify_time TEXT DEFAULT '15:00'
+            notify_time TEXT DEFAULT '15:00',
+            notifications_enabled BOOLEAN DEFAULT TRUE
         )
     ''')
     conn.commit()
     conn.close()
 
-def save_user(user_id: str, name: str, chat_id: int, quit_date: str = None, notify_time: str = None):
+def save_user(user_id: str, name: str, chat_id: int, quit_date: str = None, notify_time: str = None, notifications_enabled: bool = True):
     """Сохранение или обновление пользователя"""
     try:
         conn = sqlite3.connect('users.db')
@@ -34,9 +45,9 @@ def save_user(user_id: str, name: str, chat_id: int, quit_date: str = None, noti
                 raise ValueError("Неверный формат времени")
                 
         c.execute('''
-            INSERT OR REPLACE INTO users (user_id, name, chat_id, quit_date, notify_time)
-            VALUES (?, ?, ?, ?, COALESCE(?, '15:00'))
-        ''', (user_id, name, chat_id, quit_date, notify_time))
+            INSERT OR REPLACE INTO users (user_id, name, chat_id, quit_date, notify_time, notifications_enabled)
+            VALUES (?, ?, ?, ?, COALESCE(?, '15:00'), ?)
+        ''', (user_id, name, chat_id, quit_date, notify_time, notifications_enabled))
         
         conn.commit()
         print(f"✅ Сохранено время уведомлений {notify_time} для пользователя {name}")
@@ -58,7 +69,8 @@ def get_user(user_id: str):
             'name': user[1],
             'chat_id': user[2],
             'quit_date': user[3],
-            'notify_time': user[4]
+            'notify_time': user[4],
+            'notifications_enabled': user[5]
         }
     return None
 
@@ -74,5 +86,6 @@ def get_all_users():
         'name': user[1],
         'chat_id': user[2],
         'quit_date': user[3],
-        'notify_time': user[4]
+        'notify_time': user[4],
+        'notifications_enabled': user[5]
     } for user in users] 

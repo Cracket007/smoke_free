@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 from pydub import AudioSegment
-from bot_config import bot, audio_files, motivation_phrases, motivation_mapping, get_motivational_message, TIMEZONE
+from bot_config import bot, audio_files, voice_motivation_phrases, get_text_motivation, get_voice_motivation, TIMEZONE
 import tempfile
 import random
 import pytz
@@ -12,6 +12,10 @@ def calculate_smoke_free_time(quit_time):
     # Конвертируем время отказа в киевский часовой пояс если оно без зоны
     if quit_time.tzinfo is None:
         quit_time = TIMEZONE.localize(quit_time)
+    
+    # Проверяем, не в будущем ли дата
+    if quit_time > now:
+        return 0, 0, 0  # Возвращаем нули если дата в будущем
     
     delta = now - quit_time
     total_months = delta.days // 30
@@ -29,77 +33,75 @@ def get_word_form(number, forms):
         return "plural"
 
 def get_number_files(number):
-    """Возвращает список файлов для озвучки числа"""
+    """Получает список файлов для озвучивания числа"""
+    files = []
+    
     if number <= 20:
-        return [audio_files["numbers"][str(number)]]
-    elif number == 30:
-        return [audio_files["thirty"]]
-    else:  # 21-29
-        return [audio_files["twenty"], audio_files["numbers"][str(number - 20)]]
+        # Для чисел до 20 используем готовые файлы
+        files.append(audio_files["numbers"][str(number)])
+    else:
+        # Для чисел больше 20
+        tens = (number // 10) * 10
+        ones = number % 10
+        
+        if tens == 20:
+            files.append(audio_files["twenty"])
+        elif tens == 30:
+            files.append(audio_files["thirty"])
+            
+        if ones > 0:
+            files.append(audio_files["numbers"][str(ones)])
+    
+    return files
 
 def generate_voice_message(years, months, days):
+    """Генерирует список аудиофайлов для сообщения"""
     message_files = [audio_files["intro"]]
+    parts = []
     
-    # Добавляем годы
+    # Собираем все части сообщения
     if years > 0:
-        message_files.extend(get_number_files(years))
-        form = get_word_form(years, audio_files["year_forms"])
-        message_files.append(audio_files["year_forms"][form])
-
-    # Добавляем месяцы
+        year_files = get_number_files(years)
+        year_form = get_word_form(years, audio_files["year_forms"])
+        parts.append(year_files + [audio_files["year_forms"][year_form]])
+        
     if months > 0:
-        if years > 0:
-            message_files.append(audio_files["and"])
-        message_files.extend(get_number_files(months))
-        form = get_word_form(months, audio_files["month_forms"])
-        message_files.append(audio_files["month_forms"][form])
-
-    # Добавляем дни
+        month_files = get_number_files(months)
+        month_form = get_word_form(months, audio_files["month_forms"])
+        parts.append(month_files + [audio_files["month_forms"][month_form]])
+        
     if days > 0:
-        if years > 0 or months > 0:
+        day_files = get_number_files(days)
+        day_form = get_word_form(days, audio_files["day_forms"])
+        parts.append(day_files + [audio_files["day_forms"][day_form]])
+    
+    # Собираем сообщение с "и" только перед последней частью
+    for i, part in enumerate(parts):
+        if i == len(parts) - 1 and i > 0:  # Если это последняя часть и не единственная
             message_files.append(audio_files["and"])
-        message_files.extend(get_number_files(days))
-        form = get_word_form(days, audio_files["day_forms"])
-        message_files.append(audio_files["day_forms"][form])
-
+        message_files.extend(part)
+    
     # Добавляем мотивирующую фразу
-    motivation_text = random.choice(motivation_phrases)
-    motivation_key = motivation_mapping[motivation_text]
+    motivation_text, motivation_key = get_voice_motivation()
     message_files.append(audio_files["motivation"][motivation_key])
-
-    return message_files, motivation_text  # Возвращаем также текст фразы
+    
+    return message_files
 
 def combine_audio_files(files):
-    """Объединяет аудиофайлы и конвертирует в голосовое сообщение"""
+    """Объединяет аудиофайлы в один"""
     try:
-        # Объединяем все аудио файлы
-        combined = AudioSegment.empty()
-        for file in files:
+        # Загружаем первый файл
+        combined = AudioSegment.from_ogg(files[0])
+        
+        # Добавляем остальные файлы
+        for file in files[1:]:
             audio = AudioSegment.from_ogg(file)
             combined += audio
             
-        # Конвертируем в формат для голосовых сообщений
-        # Параметры: моно, частота 48кГц, битрейт 128кбит/с
-        combined = combined.set_channels(1)
-        combined = combined.set_frame_rate(48000)
+        return combined  # Возвращаем AudioSegment объект
         
-        # Сохраняем во временный файл
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.ogg') as temp_file:
-            # Экспортируем с параметрами для голосовых сообщений
-            combined.export(
-                temp_file.name,
-                format='ogg',
-                codec='libopus',
-                parameters=[
-                    '-ac', '1',  # моно
-                    '-ar', '48000',  # частота 48кГц
-                    '-b:a', '128k'  # битрейт 128кбит/с
-                ]
-            )
-            return temp_file.name
-            
     except Exception as e:
-        print(f"❌ Ошибка при обработке аудио: {e}")
+        print(f"❌ Ошибка при объединении аудио: {e}")
         raise
 
 def format_duration(duration):
@@ -119,102 +121,74 @@ def format_duration(duration):
     return " и ".join(parts) if parts else "меньше минуты"
 
 def send_status(chat_id, quit_time):
-    """Отправка статуса о времени без курения"""
+    """Отправляет текстовый и голосовой статус"""
     try:
-        if not os.path.exists('audio'):
-            print("❌ Ошибка: директория audio не найдена")
-            return
-
-        # Конвертируем время отказа в киевский часовой пояс если оно без зоны
-        if quit_time.tzinfo is None:
-            quit_time = TIMEZONE.localize(quit_time)
-
         years, months, days = calculate_smoke_free_time(quit_time)
-        voice_files, motivation = generate_voice_message(years, months, days)
         
-        # Проверяем наличие всех файлов
-        for file in voice_files:
-            if not os.path.exists(file):
-                print(f"❌ Ошибка: файл {file} не найден")
-                return
+        # Проверяем, не в будущем ли дата
+        if years == months == days == 0:
+            bot.send_message(chat_id, "❗️ Дата отказа не может быть в будущем")
+            return
+            
+        text_parts = []
+        if years > 0:
+            text_parts.append(f"{years} {'год' if years == 1 else 'года' if 1 < years < 5 else 'лет'}")
+        if months > 0:
+            text_parts.append(f"{months} {'месяц' if months == 1 else 'месяца' if 1 < months < 5 else 'месяцев'}")
+        if days > 0:
+            text_parts.append(f"{days} {'день' if days == 1 else 'дня' if 1 < days < 5 else 'дней'}")
         
-        try:
-            combined_file = combine_audio_files(voice_files)
-            
-            with open(combined_file, 'rb') as audio:
-                bot.send_voice(chat_id, audio)
-            
-            os.unlink(combined_file)
-            
-            # Формируем только текст с годами, месяцами и днями
-            text_parts = []
-            if years > 0:
-                text_parts.append(f"{years} {'год' if years == 1 else 'года' if 1 < years < 5 else 'лет'}")
-            if months > 0:
-                text_parts.append(f"{months} {'месяц' if months == 1 else 'месяца' if 1 < months < 5 else 'месяцев'}")
-            if days > 0:
-                text_parts.append(f"{days} {'день' if days == 1 else 'дня' if 1 < days < 5 else 'дней'}")
-            
-            text_message = f"💪 Ваш прогресс:\n\n🌟 {' '.join(text_parts)} без курения!\n\n🎯 Так держать!"
-            bot.send_message(chat_id, text_message)
-            
-        except Exception as audio_error:
-            print(f"❌ Ошибка при обработке аудио: {audio_error}")
-            
+        text_message = (
+            f"🌟 Твой путь к здоровью:\n\n"
+            f"✨ Уже {' '.join(text_parts)} свободы от курения!\n\n"
+            f"{get_text_motivation()}"
+        )
+        bot.send_message(chat_id, text_message)
+        
+        send_voice_status(chat_id, quit_time)
+        
     except Exception as e:
         print(f"❌ Ошибка отправки статуса: {e}")
-        bot.send_message(chat_id, "❌ Произошла ошибка при подсчете времени")
 
 def send_voice_status(chat_id, quit_time):
-    """Отправка голосового статуса о времени без курения"""
+    """Отправляет голосовое сообщение о прогрессе"""
     try:
         if not os.path.exists('audio'):
-            print("❌ Ошибка: директория audio не найдена")
+            print("❌ Папка audio не найдена")
             return
-
+            
         years, months, days = calculate_smoke_free_time(quit_time)
-        voice_files = []  # Сначала собираем все файлы
         
-        # Добавляем вступление
-        voice_files.append(audio_files['intro'])
+        # Получаем список файлов для сообщения
+        message_files = generate_voice_message(years, months, days)
         
-        # Добавляем годы, если есть
-        if years > 0:
-            voice_files.extend(get_number_files(years))
-            voice_files.append(audio_files['year_forms'][get_word_form(years, 'year')])
-            if months > 0 or days > 0:
-                voice_files.append(audio_files['and'])
+        # Комбинируем аудиофайлы
+        combined = combine_audio_files(message_files)
         
-        # Добавляем месяцы, если есть
-        if months > 0:
-            voice_files.extend(get_number_files(months))
-            voice_files.append(audio_files['month_forms'][get_word_form(months, 'month')])
-            if days > 0:
-                voice_files.append(audio_files['and'])
+        # Конвертируем в формат для голосовых сообщений
+        combined = combined.set_channels(1)  # моно
+        combined = combined.set_frame_rate(48000)  # 48кГц
         
-        # Добавляем дни
-        if days > 0:
-            voice_files.extend(get_number_files(days))
-            voice_files.append(audio_files['day_forms'][get_word_form(days, 'day')])
-        
-        # Добавляем мотивационную фразу
-        motivation = random.choice(list(audio_files['motivation'].values()))
-        voice_files.append(motivation)
-        
-        # Проверяем наличие всех файлов
-        for file in voice_files:
-            if not os.path.exists(file):
-                print(f"❌ Ошибка: файл {file} не найден")
-                return
-        
-        try:
-            combined_file = combine_audio_files(voice_files)
-            with open(combined_file, 'rb') as audio:
+        # Создаем временный файл
+        with tempfile.NamedTemporaryFile(suffix='.ogg', delete=False) as temp_file:
+            # Экспортируем с параметрами для голосовых сообщений
+            combined.export(
+                temp_file.name,
+                format='ogg',
+                codec='libopus',
+                parameters=[
+                    '-ac', '1',      # моно
+                    '-ar', '48000',  # частота 48кГц
+                    '-b:a', '128k'   # битрейт 128кбит/с
+                ]
+            )
+            
+            # Отправляем файл
+            with open(temp_file.name, 'rb') as audio:
                 bot.send_voice(chat_id, audio)
-            os.unlink(combined_file)
-            
-        except Exception as audio_error:
-            print(f"❌ Ошибка при обработке аудио: {audio_error}")
-            
+                
+        # Удаляем временный файл
+        os.unlink(temp_file.name)
+        
     except Exception as e:
-        print(f"❌ Ошибка отправки голосового статуса: {e}") 
+        print(f"❌ Ошибка отправки голосового сообщения: {e}") 

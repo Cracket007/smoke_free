@@ -22,15 +22,11 @@ def setup_schedules():
         if not users:
             return
             
-        now = datetime.now(TIMEZONE)
-        
         for user in users:
-            time = user.get('notify_time')
-            if time:
-                hours, minutes = map(int, time.split(':'))
-                notify_time = now.replace(hour=hours, minute=minutes)
-                
-                schedule.every().day.at(time).do(
+            notify_time = user.get('notify_time')
+            notifications_enabled = user.get('notifications_enabled', True)
+            if notify_time and notifications_enabled:
+                schedule.every().day.at(notify_time).do(
                     send_notification, 
                     user_id=user['user_id']
                 ).tag(user['user_id'])
